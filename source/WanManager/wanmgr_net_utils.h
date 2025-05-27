@@ -44,6 +44,15 @@
 #define WAN_STATUS_DOWN "down"
 
 #define WAN_IF_MARKING_MAX_LIMIT       ( 15 )
+
+#define SYSCFG_LAN_IP_ADDRESS "lan_ipaddr"
+#define SYSCFG_LAN_NET_MASK "lan_netmask"
+#define SYSCFG_LAN_INTERFACE "lan_ifname"
+#define SYSCFG_WAN_INTERFACE "wan_ifname"
+#define SYSEVENT_FIREWALL_RESTART "firewall-restart"
+#define SYSEVENT_IGD_RESTART "igd-restart"
+#define DOM_MAP_INS_NO 1
+
 typedef  struct _CONTEXT_MARKING_LINK_OBJECT
 {
     CONTEXT_LINK_CLASS_CONTENT

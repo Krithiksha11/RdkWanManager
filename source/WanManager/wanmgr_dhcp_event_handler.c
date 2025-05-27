@@ -23,9 +23,99 @@
 #include "wanmgr_interface_sm.h"
 #include "wanmgr_dhcp_client_events.h"
 #include "wanmgr_net_utils.h"
+#include "wanmgr_map_apis.h"
 
+static void WanMgr_ApplyMapDataModelUpdate(const DHCP_MGR_IPV6_MSG *dhcpMsg)
+{
+    if (!dhcpMsg)
+    {
+        CcspTraceWarning(("WanMgr_ApplyMapDataModelUpdate: NULL input\n"));
+        return;
+    }
 
+    PWAN_DML_DOMAIN_CFG  pDomainCfg  = WanDmlMapDomGetCfg_Data(DOM_MAP_INS_NO);
+    PWAN_DML_DOMAIN_INFO pDomainInfo = WanDmlMapDomGetInfo_Data(DOM_MAP_INS_NO);
+    PWAN_DML_MAP_RULE    pRule       = WanDmlMapDomGetRule_Data(DOM_MAP_INS_NO, DOM_MAP_INS_NO - 1);
 
+    if (!pDomainCfg || !pDomainInfo || !pRule)
+    {
+        CcspTraceError(("WanMgr_ApplyMapDataModelUpdate: Failed to get MAP data model references\n"));
+        return;
+    }
+
+    if (dhcpMsg->mapeAssigned)
+    {
+        CcspTraceInfo(("Applying MAP-E configuration\n"));
+
+        // Set transport mode and enable domain
+        pDomainInfo->TransportMode = WAN_DML_DOMAIN_TRANSPORT_MAPE;
+        pDomainInfo->Status = WAN_DML_DOMAIN_STATUS_Enabled;
+        pDomainCfg->bEnabled = TRUE;
+
+        // Update domain-level configuration
+        strncpy(pDomainCfg->BRIPv6Prefix, dhcpMsg->map.brIPv6Prefix, sizeof(pDomainCfg->BRIPv6Prefix));
+
+        // Update MAP-E rule
+        strncpy(pRule->IPv4Prefix, dhcpMsg->map.ruleIPv4Prefix, sizeof(pRule->IPv4Prefix));
+        strncpy(pRule->IPv6Prefix, dhcpMsg->map.ruleIPv6Prefix, sizeof(pRule->IPv6Prefix));
+        pRule->EABitsLength = dhcpMsg->map.eaLen;
+        pRule->PSIDOffset = dhcpMsg->map.psidOffset;
+        pRule->PSIDLength = dhcpMsg->map.psidLen;
+        pRule->PSID = dhcpMsg->map.psid;
+        pRule->IsFMR = dhcpMsg->map.isFMR;
+        pRule->Status = WAN_DML_RULE_STATUS_Enabled;
+    }
+    else if (dhcpMsg->maptAssigned)
+    {
+        CcspTraceInfo(("Applying MAP-T configuration\n"));
+
+        pDomainInfo->TransportMode = WAN_DML_DOMAIN_TRANSPORT_MAPT;
+        pDomainInfo->Status = WAN_DML_DOMAIN_STATUS_Enabled;
+        pDomainCfg->bEnabled = TRUE;
+
+        // Update domain-level configuration
+        strncpy(pDomainCfg->BRIPv6Prefix, dhcpMsg->map.brIPv6Prefix, sizeof(pDomainCfg->BRIPv6Prefix));
+
+        // Update MAP-T rule
+        strncpy(pRule->IPv4Prefix, dhcpMsg->map.ruleIPv4Prefix, sizeof(pRule->IPv4Prefix));
+        strncpy(pRule->IPv6Prefix, dhcpMsg->map.ruleIPv6Prefix, sizeof(pRule->IPv6Prefix));
+        pRule->EABitsLength = dhcpMsg->map.eaLen;
+        pRule->PSIDOffset = dhcpMsg->map.psidOffset;
+        pRule->PSIDLength = dhcpMsg->map.psidLen;
+        pRule->PSID = dhcpMsg->map.psid;
+        pRule->IsFMR = dhcpMsg->map.isFMR;
+        pRule->Status = WAN_DML_RULE_STATUS_Enabled;
+    }
+    else
+    {
+        CcspTraceInfo(("No MAP configuration assigned via DHCP yet.\n"));
+    }
+}
+
+void WanMgr_ClearMapDataModel()
+{
+    PWAN_DML_DOMAIN_CFG  pDomainCfg  = WanDmlMapDomGetCfg_Data(DOM_MAP_INS_NO);
+    PWAN_DML_DOMAIN_INFO pDomainInfo = WanDmlMapDomGetInfo_Data(DOM_MAP_INS_NO);
+    PWAN_DML_MAP_RULE    pRule       = WanDmlMapDomGetRule_Data(DOM_MAP_INS_NO, DOM_MAP_INS_NO - 1);
+
+    if (!pDomainCfg || !pDomainInfo || !pRule)
+    {
+        CcspTraceError(("WanMgr_ClearMapDataModel: Failed to get MAP data model references\n"));
+        return;
+    }
+
+    CcspTraceInfo(("Clearing MAP domain and rule configuration\n"));
+
+    pDomainCfg->bEnabled = FALSE;
+    pDomainInfo->Status = WAN_DML_DOMAIN_STATUS_Disabled;
+    pRule->Status = WAN_DML_RULE_STATUS_Disabled;
+
+    memset(pRule, 0, sizeof(WAN_DML_MAP_RULE));
+    snprintf((char *)pRule->Alias, sizeof(pRule->Alias), "Rule_1");
+    AnscCopyString((char *)pRule->Origin, "DHCPv6");
+
+    memset(pDomainCfg->BRIPv6Prefix, 0, sizeof(pDomainCfg->BRIPv6Prefix));
+}
 
 static void copyDhcpv4Data(WANMGR_IPV4_DATA* pDhcpv4Data, const DHCP_MGR_IPV4_MSG* leaseInfo) 
 {
@@ -80,10 +170,11 @@ static void copyDhcpv6Data(WANMGR_IPV6_DATA* pDhcpv6Data, const DHCP_MGR_IPV6_MS
         "| prefixAssigned      : %-40d |\n"
         "| domainNameAssigned  : %-40d |\n"
         "| maptAssigned        : %-40d |\n"
+        "| mapeAssigned        : %-40d |\n"
         "=================================================================\n",
         leaseInfo->ifname, leaseInfo->address, leaseInfo->nameserver, leaseInfo->nameserver1,
         leaseInfo->domainName, leaseInfo->sitePrefix, leaseInfo->prefixPltime, leaseInfo->prefixVltime,
-        leaseInfo->addrAssigned, leaseInfo->prefixAssigned, leaseInfo->domainNameAssigned, leaseInfo->maptAssigned));
+        leaseInfo->addrAssigned, leaseInfo->prefixAssigned, leaseInfo->domainNameAssigned, leaseInfo->maptAssigned, leaseInfo->mapeAssigned));
 
     strncpy(pDhcpv6Data->ifname, leaseInfo->ifname, sizeof(pDhcpv6Data->ifname) - 1);
     strncpy(pDhcpv6Data->address, leaseInfo->address, sizeof(pDhcpv6Data->address) - 1);
@@ -209,26 +300,38 @@ void* WanMgr_DhcpClientEventsHandler_Thread(void *arg)
                         MaptInfo("--------- Got a new event in Wanmanager for MAPT_CONFIG ---------");
 #endif
                         //Compare  MAP-T previous data
-                        if (memcmp(&(pVirtIf->MAP.dhcp6cMAPTparameters), &(leaseInfo->mapt), sizeof(ipc_mapt_data_t)) != 0)
+                        if (memcmp(&(pVirtIf->MAP.dhcp6cMAPTparameters), &(leaseInfo->map), sizeof(ipc_mapt_data_t)) != 0)
                         {
                             pVirtIf->MAP.MaptChanged = TRUE;
                             CcspTraceInfo(("MAPT configuration has been changed \n"));
                         }
-                        memcpy(&(pVirtIf->MAP.dhcp6cMAPTparameters), &(leaseInfo->mapt), sizeof(ipc_mapt_data_t));
+                        memcpy(&(pVirtIf->MAP.dhcp6cMAPTparameters), &(leaseInfo->map), sizeof(ipc_mapt_data_t));
                         // update MAP-T flags
                         WanManager_UpdateInterfaceStatus(pVirtIf, WANMGR_IFACE_MAPT_START);
+                        // update MAP DataModels
+                        WanMgr_ApplyMapDataModelUpdate(leaseInfo);
+                    }
+                    else if (leaseInfo->mapeAssigned)
+                    {
+#ifdef FEATURE_MAPT_DEBUG
+                        MaptInfo("--------- Got a new event in Wanmanager for MAPE_CONFIG ---------");
+#endif
+                        memcpy(&(pVirtIf->MAP.dhcp6cMAPTparameters), &(leaseInfo->map), sizeof(ipc_mapt_data_t));
+                        // update MAP DataModels
+                        WanMgr_ApplyMapDataModelUpdate(leaseInfo);
                     }
                     else
                     {
                         if (leaseInfo->prefixAssigned && !IS_EMPTY_STRING(leaseInfo->sitePrefix) && leaseInfo->prefixPltime != 0 && leaseInfo->prefixVltime != 0)
                         {
 #ifdef FEATURE_MAPT_DEBUG
-                            MaptInfo("--------- Got an event in Wanmanager for MAPT_STOP ---------");
+                            MaptInfo("--------- Got an event in Wanmanager for MAP_STOP ---------");
 #endif
                             // reset MAP-T parameters
                             memset(&(pVirtIf->MAP.dhcp6cMAPTparameters), 0, sizeof(ipc_mapt_data_t));
                             WanManager_UpdateInterfaceStatus(pVirtIf, WANMGR_IFACE_MAPT_STOP);
                         }
+                        WanMgr_ClearMapDataModel();
                     }
 #endif // FEATURE_MAPT
                     char param_name[256] = {0};
