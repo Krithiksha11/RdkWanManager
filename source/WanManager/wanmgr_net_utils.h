@@ -44,6 +44,14 @@
 #define WAN_STATUS_DOWN "down"
 
 #define WAN_IF_MARKING_MAX_LIMIT       ( 15 )
+
+#define SYSCFG_LAN_IP_ADDRESS "lan_ipaddr"
+#define SYSCFG_LAN_NET_MASK "lan_netmask"
+#define SYSCFG_LAN_INTERFACE "lan_ifname"
+#define SYSCFG_WAN_INTERFACE "wan_ifname"
+#define SYSEVENT_FIREWALL_RESTART "firewall-restart"
+#define SYSEVENT_IGD_RESTART "igd-restart"
+
 typedef  struct _CONTEXT_MARKING_LINK_OBJECT
 {
     CONTEXT_LINK_CLASS_CONTENT
@@ -271,4 +279,5 @@ BOOL IsValidIpAddress(int32_t af, const char *address);
 
 
 int WanManager_send_and_receive_rs(DML_VIRTUAL_IFACE * pVirtIf);
+ANSC_STATUS WanManager_MAPEConfiguration(ipc_mapt_data_t *dhcp6cMAPTMsgBody);
 #endif // _WANMGR_NET_UTILS_H_

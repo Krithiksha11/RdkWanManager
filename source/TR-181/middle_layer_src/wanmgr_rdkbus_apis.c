@@ -243,6 +243,16 @@ int get_Virtual_Interface_FromPSM(ULONG instancenum, ULONG virtInsNum ,DML_VIRTU
 
     _ansc_memset(param_name, 0, sizeof(param_name));
     _ansc_memset(param_value, 0, sizeof(param_value));
+    _ansc_sprintf(param_name, PSM_WANMANAGER_IF_VIRIF_ENABLE_MAPE, instancenum, (virtInsNum + 1));
+    retPsmGet = WanMgr_RdkBus_GetParamValuesFromDB(param_name,param_value,sizeof(param_value));
+
+    if(strcmp(param_value, PSM_ENABLE_STRING_TRUE) == 0)
+    {
+        pVirtIf->EnableMAPE = TRUE;
+    }
+
+    _ansc_memset(param_name, 0, sizeof(param_name));
+    _ansc_memset(param_value, 0, sizeof(param_value));
     _ansc_sprintf(param_name, PSM_WANMANAGER_IF_VIRIF_ENABLE_DSLITE, instancenum, (virtInsNum + 1));
     retPsmGet = WanMgr_RdkBus_GetParamValuesFromDB(param_name,param_value,sizeof(param_value));
 
@@ -2117,4 +2127,51 @@ ANSC_STATUS WanMgr_Publish_WanStatus(UINT IfaceIndex, UINT VirId)
         WanMgrDml_GetIfaceData_release(pWanDmlIfaceData);
     }
     return ANSC_STATUS_SUCCESS;
+}
+
+ANSC_STATUS WanMgr_WanMapConfInit(WanMgr_MapDomainCtrl_Data_t* pWanMapCtrl)
+{
+    if(pWanMapCtrl != NULL)
+    {
+        ANSC_STATUS result;
+        UINT        uiTotalDomain = 1;
+        UINT        idx;
+        UINT        idx1;
+        CcspTraceWarning(("%s-%d: \n",__FUNCTION__, __LINE__));
+        pWanMapCtrl->pDomain = (WanMgr_Map_Domain_t*) AnscAllocateMemory(sizeof(WanMgr_Map_Domain_t) * uiTotalDomain);
+        if( NULL == pWanMapCtrl->pDomain )
+        {
+            CcspTraceWarning(("%s-%d: Error in Mem Alloc for MapDomain\n",__FUNCTION__, __LINE__));
+            return ANSC_STATUS_FAILURE;
+        }
+        pWanMapCtrl->ulTotalNumWanMapDomainEntries = uiTotalDomain;
+        pWanMapCtrl->Enable = false;
+         //Memset all Domain memory
+        memset( pWanMapCtrl->pDomain, 0, ( sizeof(WanMgr_Map_Domain_t) * uiTotalDomain ) );
+        for( idx = 0 ; idx < uiTotalDomain ; idx++ )
+        {
+            WanMgr_Map_Domain_t*  pMapDomainData  = &(pWanMapCtrl->pDomain[idx]);
+            DML_MAP_DOMAIN* pWanDomain = &(pMapDomainData->Domaindata);
+            WanMgr_MapDomainData_Init(pMapDomainData, idx);
+            // Initialize the DomainRule
+            UINT        uiTotalDomainRule = 1;
+            pWanMapCtrl->pDomain->pRule = (WanMgr_Map_DomainRule_t*) AnscAllocateMemory(sizeof(WanMgr_Map_DomainRule_t) * uiTotalDomainRule);
+            //Memset all DomainRule memory
+            memset( pWanMapCtrl->pDomain->pRule, 0, ( sizeof(WanMgr_Map_DomainRule_t) * uiTotalDomainRule ) );
+            if( NULL == pWanMapCtrl->pDomain->pRule )
+            {
+                CcspTraceWarning(("%s-%d: Error in Mem Alloc for DomainRule\n",__FUNCTION__, __LINE__));
+                return ANSC_STATUS_FAILURE;
+            }
+            for( idx1 = 0 ; idx1 < uiTotalDomainRule ; idx1++ )
+            {
+                 WanMgr_Map_DomainRule_t*  pMapDomainRuleData  = &(pWanMapCtrl->pDomain->pRule[idx1]);
+                 DML_MAP_DOMAINRULE* pWanDomainRule = &(pMapDomainRuleData->data);
+                 WanMgr_MapDomainRuleData_Init(pMapDomainData, idx1);
+            }
+        }
+
+    }
+   return ANSC_STATUS_SUCCESS;
+
 }

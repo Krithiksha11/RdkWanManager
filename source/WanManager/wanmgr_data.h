@@ -81,6 +81,7 @@ DML_VIRTIF_MARKING* WanMgr_getVirtualMarking_locked(UINT baseIfidx, UINT virtIfI
 void WanMgr_VirtMarkingMutex_release(DML_VIRTIF_MARKING* virtMarking);
 DML_VIRTUAL_IFACE* WanMgr_GetVirtIfDataByAlias_locked(char* iface_name);
 DML_VIRTUAL_IFACE* WanMgr_GetActiveVirtIfData_locked(void);
+DML_VIRTUAL_IFACE* WanMgr_GetMapVirtIf_locked(void);
 WANMGR_IFACE_GROUP* WanMgr_GetIfaceGroup_locked(UINT iface_index);
 void WanMgrDml_GetIfaceGroup_release(void);
 ANSC_STATUS WanMgr_UpdatePrevData(void);

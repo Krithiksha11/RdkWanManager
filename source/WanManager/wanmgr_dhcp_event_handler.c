@@ -23,9 +23,7 @@
 #include "wanmgr_interface_sm.h"
 #include "wanmgr_dhcp_client_events.h"
 #include "wanmgr_net_utils.h"
-
-
-
+#include "wanmgr_map_apis.h"
 
 static void copyDhcpv4Data(WANMGR_IPV4_DATA* pDhcpv4Data, const DHCP_MGR_IPV4_MSG* leaseInfo) 
 {
@@ -80,10 +78,11 @@ static void copyDhcpv6Data(WANMGR_IPV6_DATA* pDhcpv6Data, const DHCP_MGR_IPV6_MS
         "| prefixAssigned      : %-40d |\n"
         "| domainNameAssigned  : %-40d |\n"
         "| maptAssigned        : %-40d |\n"
+        "| mapeAssigned        : %-40d |\n"
         "=================================================================\n",
         leaseInfo->ifname, leaseInfo->address, leaseInfo->nameserver, leaseInfo->nameserver1,
         leaseInfo->domainName, leaseInfo->sitePrefix, leaseInfo->prefixPltime, leaseInfo->prefixVltime,
-        leaseInfo->addrAssigned, leaseInfo->prefixAssigned, leaseInfo->domainNameAssigned, leaseInfo->maptAssigned));
+        leaseInfo->addrAssigned, leaseInfo->prefixAssigned, leaseInfo->domainNameAssigned, leaseInfo->maptAssigned, leaseInfo->mapeAssigned));
 
     strncpy(pDhcpv6Data->ifname, leaseInfo->ifname, sizeof(pDhcpv6Data->ifname) - 1);
     strncpy(pDhcpv6Data->address, leaseInfo->address, sizeof(pDhcpv6Data->address) - 1);
@@ -209,25 +208,34 @@ void* WanMgr_DhcpClientEventsHandler_Thread(void *arg)
                         MaptInfo("--------- Got a new event in Wanmanager for MAPT_CONFIG ---------");
 #endif
                         //Compare  MAP-T previous data
-                        if (memcmp(&(pVirtIf->MAP.dhcp6cMAPTparameters), &(leaseInfo->mapt), sizeof(ipc_mapt_data_t)) != 0)
+                        if (memcmp(&(pVirtIf->MAP.dhcp6cMAPparameters), &(leaseInfo->map), sizeof(ipc_mapt_data_t)) != 0)
                         {
                             pVirtIf->MAP.MaptChanged = TRUE;
                             CcspTraceInfo(("MAPT configuration has been changed \n"));
                         }
-                        memcpy(&(pVirtIf->MAP.dhcp6cMAPTparameters), &(leaseInfo->mapt), sizeof(ipc_mapt_data_t));
+                        memcpy(&(pVirtIf->MAP.dhcp6cMAPparameters), &(leaseInfo->map), sizeof(ipc_mapt_data_t));
                         // update MAP-T flags
                         WanManager_UpdateInterfaceStatus(pVirtIf, WANMGR_IFACE_MAPT_START);
+                    }
+                    else if (leaseInfo->mapeAssigned)
+                    {
+#ifdef FEATURE_MAPT_DEBUG
+                        MaptInfo("--------- Got a new event in Wanmanager for MAPE_CONFIG ---------");
+#endif
+                        memcpy(&(pVirtIf->MAP.dhcp6cMAPparameters), &(leaseInfo->map), sizeof(ipc_mapt_data_t));
+                        WanManager_UpdateInterfaceStatus(pVirtIf, WANMGR_IFACE_MAPE_START);
                     }
                     else
                     {
                         if (leaseInfo->prefixAssigned && !IS_EMPTY_STRING(leaseInfo->sitePrefix) && leaseInfo->prefixPltime != 0 && leaseInfo->prefixVltime != 0)
                         {
 #ifdef FEATURE_MAPT_DEBUG
-                            MaptInfo("--------- Got an event in Wanmanager for MAPT_STOP ---------");
+                            MaptInfo("--------- Got an event in Wanmanager for MAP_STOP ---------");
 #endif
                             // reset MAP-T parameters
-                            memset(&(pVirtIf->MAP.dhcp6cMAPTparameters), 0, sizeof(ipc_mapt_data_t));
+                            memset(&(pVirtIf->MAP.dhcp6cMAPparameters), 0, sizeof(ipc_mapt_data_t));
                             WanManager_UpdateInterfaceStatus(pVirtIf, WANMGR_IFACE_MAPT_STOP);
+                            WanManager_UpdateInterfaceStatus(pVirtIf, WANMGR_IFACE_MAPE_STOP);
                         }
                     }
 #endif // FEATURE_MAPT
