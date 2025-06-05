@@ -1907,7 +1907,7 @@ ANSC_STATUS wanmgr_handle_dhcpv6_event_data(DML_VIRTUAL_IFACE * pVirtIf)
 #endif
 
         //get MAP-T previous data
-        memcpy(&dhcp6cMAPTMsgBodyPrvs, &(pVirtIf->MAP.dhcp6cMAPTparameters), sizeof(ipc_mapt_data_t));
+        memcpy(&dhcp6cMAPTMsgBodyPrvs, &(pVirtIf->MAP.dhcp6cMAPparameters), sizeof(ipc_mapt_data_t));
 
         if (memcmp(&(pNewIpcMsg->mapt), &dhcp6cMAPTMsgBodyPrvs, sizeof(ipc_mapt_data_t)) != 0)
         {
@@ -1916,7 +1916,7 @@ ANSC_STATUS wanmgr_handle_dhcpv6_event_data(DML_VIRTUAL_IFACE * pVirtIf)
         }
 
         // store MAP-T parameters locally
-        memcpy(&(pVirtIf->MAP.dhcp6cMAPTparameters), &(pNewIpcMsg->mapt), sizeof(ipc_mapt_data_t));
+        memcpy(&(pVirtIf->MAP.dhcp6cMAPparameters), &(pNewIpcMsg->mapt), sizeof(ipc_mapt_data_t));
 
         // update MAP-T flags
         WanManager_UpdateInterfaceStatus(pVirtIf, WANMGR_IFACE_MAPT_START);
@@ -1929,7 +1929,7 @@ ANSC_STATUS wanmgr_handle_dhcpv6_event_data(DML_VIRTUAL_IFACE * pVirtIf)
             MaptInfo("--------- Got an event in Wanmanager for MAPT_STOP ---------");
 #endif
             // reset MAP-T parameters
-            memset(&(pVirtIf->MAP.dhcp6cMAPTparameters), 0, sizeof(ipc_mapt_data_t));
+            memset(&(pVirtIf->MAP.dhcp6cMAPparameters), 0, sizeof(ipc_mapt_data_t));
             WanManager_UpdateInterfaceStatus(pVirtIf, WANMGR_IFACE_MAPT_STOP);
         }
     }

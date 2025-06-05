@@ -28,6 +28,7 @@ extern ANSC_STATUS WanMgr_CheckAndResetV2PSMEntries(UINT IfaceCount);
 /******** WAN MGR DATABASE ********/
 WANMGR_DATA_ST gWanMgrDataBase;
 
+static WANMGR_MAP_ST gWanMgrMapDataBase;
 
 /******** WANMGR CONFIG FUNCTIONS ********/
 WanMgr_Config_Data_t* WanMgr_GetConfigData_locked(void)
@@ -111,6 +112,15 @@ void WanMgr_SetIfaceCtrl_Default(WanMgr_IfaceCtrl_Data_t* pWanIfaceCtrl)
     }
 }
 
+void WanMgr_SetMapCtrl_Default(WanMgr_MapDomainCtrl_Data_t* pWanMapCtrl)
+{
+    if(pWanMapCtrl != NULL)
+    {
+        pWanMapCtrl->ulTotalNumWanMapDomainEntries = 0;
+        pWanMapCtrl->Enable = false;
+        pWanMapCtrl->pDomain = NULL;
+    }
+}
 
 void WanMgr_IfaceCtrl_Delete(WanMgr_IfaceCtrl_Data_t* pWanIfaceCtrl)
 {
@@ -305,6 +315,18 @@ ANSC_STATUS WanMgr_WanDataInit(void)
     return retStatus;
 }
 
+ANSC_STATUS WanMgr_WanMapInit(void)
+{
+    ANSC_STATUS retStatus = ANSC_STATUS_FAILURE;
+    if(pthread_mutex_lock(&(gWanMgrMapDataBase.MapDomainCtrl.mDataMutex)) == 0)
+    {
+        WanMgr_MapDomainCtrl_Data_t* pWanMap = &(gWanMgrMapDataBase.MapDomainCtrl);
+        retStatus = WanMgr_WanMapConfInit(pWanMap);
+        WanMgrDml_GetMapData_release(NULL);
+    }
+    return retStatus;
+}
+
 ANSC_STATUS WanMgr_WanConfigInit(void)
 {
     ANSC_STATUS retStatus = ANSC_STATUS_FAILURE;
@@ -358,6 +380,25 @@ WanMgr_Iface_Data_t* WanMgr_GetIfaceData_locked(UINT iface_index)
             }
         }
         WanMgrDml_GetIfaceData_release(NULL);
+    }
+
+    return NULL;
+}
+
+WanMgr_Map_Domain_t* WanMgr_GetMapData_locked(UINT iface_index)
+{
+    if(pthread_mutex_lock(&(gWanMgrMapDataBase.MapDomainCtrl.mDataMutex)) == 0)
+    {
+        WanMgr_MapDomainCtrl_Data_t* pWanGrpCtrl = &(gWanMgrMapDataBase.MapDomainCtrl);
+        if(iface_index < pWanGrpCtrl->ulTotalNumWanMapDomainEntries)
+        {
+            if(pWanGrpCtrl->pDomain != NULL)
+            {
+                WanMgr_Map_Domain_t* pWanGrpData = &(pWanGrpCtrl->pDomain[iface_index]);
+                return pWanGrpData;
+            }
+        }
+        WanMgrDml_GetMapData_release(NULL);
     }
 
     return NULL;
@@ -725,6 +766,15 @@ void WanMgrDml_GetIfaceData_release(WanMgr_Iface_Data_t* pWanIfaceData)
     }
 }
 
+void WanMgrDml_GetMapData_release(WanMgr_Map_Domain_t* pWanMapData)
+{
+    WanMgr_MapDomainCtrl_Data_t* pWanMapCtrl = &(gWanMgrMapDataBase.MapDomainCtrl);
+    if(pWanMapCtrl != NULL)
+    {
+        pthread_mutex_unlock (&(pWanMapCtrl->mDataMutex));
+    }
+}
+
 void WanMgr_VirtualIfaceData_release(DML_VIRTUAL_IFACE* pVirtIf)
 {
     WanMgr_IfaceCtrl_Data_t* pWanIfaceCtrl = &(gWanMgrDataBase.IfaceCtrl);
@@ -814,6 +864,28 @@ void WanMgr_IfaceData_Init(WanMgr_Iface_Data_t* pIfaceData, UINT iface_index)
     }
 }
 
+void WanMgr_MapDomainRuleData_Init(WanMgr_Map_DomainRule_t* pDomainRuleData, UINT iface_index)
+{
+    if(pDomainRuleData != NULL)
+    {
+        DML_MAP_DOMAINRULE* pWanDmlDomainRule = &(pDomainRuleData->data);
+
+        pWanDmlDomainRule->uiIfaceIdx = iface_index;
+        pWanDmlDomainRule->uiInstanceNumber = iface_index+1;
+    }
+}
+
+void WanMgr_MapDomainData_Init(WanMgr_Map_Domain_t* pDomainData, UINT iface_index)
+{
+    if(pDomainData != NULL)
+    {
+        DML_MAP_DOMAIN* pWanDomainDml = &(pDomainData->data);
+
+        pWanDomainDml->uiIfaceIdx = iface_index;
+        pWanDomainDml->uiInstanceNumber = iface_index+1;
+    }
+}
+
 void WanMgr_VirtIface_Init(DML_VIRTUAL_IFACE * pVirtIf, UINT iface_index)
 {
     CcspTraceInfo(("%s %d Initialize Wan Virtual Iface Conf \n", __FUNCTION__, __LINE__));
@@ -866,6 +938,7 @@ void WanMgr_VirtIface_Init(DML_VIRTUAL_IFACE * pVirtIf, UINT iface_index)
     pVirtIf->IP.pIpcIpv4Data = NULL;
     pVirtIf->IP.pIpcIpv6Data = NULL;
     pVirtIf->MAP.MaptStatus = WAN_IFACE_MAPT_STATE_DOWN;
+    pVirtIf->MAP.MapeStatus = WAN_IFACE_MAPE_STATE_DOWN;
     memset(pVirtIf->MAP.Path, 0, 64);
     pVirtIf->MAP.MaptChanged = FALSE;
 #ifdef FEATURE_MAPT
@@ -921,6 +994,7 @@ void WanMgr_Remote_IfaceData_Update(WanMgr_Iface_Data_t* pIfaceData, UINT iface_
 void WanMgr_Data_Init(void)
 {
     WANMGR_DATA_ST*         pWanMgrData = &gWanMgrDataBase;
+    WANMGR_MAP_ST*          pWanMgrMapData = &gWanMgrMapDataBase;
     pthread_mutexattr_t     muttex_attr;
 
     //Initialise mutex attributes
@@ -936,6 +1010,10 @@ void WanMgr_Data_Init(void)
     WanMgr_SetIfaceGroup_Default(&(pWanMgrData->IfaceGroup));
 
     pthread_mutex_init(&(gWanMgrDataBase.gDataMutex), &(muttex_attr));
+
+    /*** WAN MAP ***/
+    WanMgr_SetMapCtrl_Default(&(pWanMgrMapData->MapDomainCtrl));
+    pthread_mutex_init(&(pWanMgrMapData->MapDomainCtrl.mDataMutex), &(muttex_attr));
 }
 
 ANSC_STATUS WanMgr_Data_Delete(void)
@@ -1118,5 +1196,63 @@ DML_VIRTUAL_IFACE* WanMgr_GetActiveVirtIfData_locked(void)
         }
         WanMgrDml_GetIfaceData_release(NULL);
     }
+    return NULL;
+}
+
+//Krithiksha
+DML_VIRTUAL_IFACE* WanMgr_GetMapVirtIf_locked(void)
+{
+    UINT idx = 0;
+
+    if (pthread_mutex_lock(&gWanMgrDataBase.gDataMutex) == 0)
+    {
+        WanMgr_IfaceCtrl_Data_t* pWanIfaceCtrl = &(gWanMgrDataBase.IfaceCtrl);
+
+        if (pWanIfaceCtrl->pIface != NULL)
+        {
+            // First look for MAPE mode with alias "DATA"
+            for (idx = 0; idx < pWanIfaceCtrl->ulTotalNumbWanInterfaces; idx++)
+            {
+                DML_WAN_IFACE* pWanIfaceData = &(pWanIfaceCtrl->pIface[idx]);
+
+                if (pWanIfaceData->Selection.Status == WAN_IFACE_ACTIVE)
+                {
+                    DML_VIRTUAL_IFACE* pVirtIf = pWanIfaceData->VirtIfList;
+
+                    while (pVirtIf)
+                    {
+                        if (pVirtIf->EnableMAPE == TRUE && pVirtIf->Status == WAN_IFACE_STATUS_UP && strcmp(pVirtIf->Alias, "DATA") == 0)
+                        {
+                            return pVirtIf; // MAPE with DATA alias
+                        }
+                        pVirtIf = pVirtIf->next;
+                    }
+                }
+            }
+
+            // If no MAPE found, fallback to first MAPT-enabled interface
+            for (idx = 0; idx < pWanIfaceCtrl->ulTotalNumbWanInterfaces; idx++)
+            {
+                DML_WAN_IFACE* pWanIfaceData = &(pWanIfaceCtrl->pIface[idx]);
+
+                if (pWanIfaceData->Selection.Status == WAN_IFACE_ACTIVE)
+                {
+                    DML_VIRTUAL_IFACE* pVirtIf = pWanIfaceData->VirtIfList;
+
+                    while (pVirtIf)
+                    {
+                        if (pVirtIf->EnableMAPT && pVirtIf->Status == WAN_IFACE_STATUS_UP)
+                        {
+                            return pVirtIf; // First active MAPT interface
+                        }
+                        pVirtIf = pVirtIf->next;
+                    }
+                }
+            }
+        }
+
+        WanMgrDml_GetIfaceData_release(NULL); 
+    }
+
     return NULL;
 }
